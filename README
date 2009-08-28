@@ -1,0 +1,43 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=2759
+
+This plug-in provides filtering/search functionality to Vim, similar to e.g.
+PSPad. This plug-in offers a number of additional features:
+
+- Further filtering/searching inside the filtered results.
+- Syntaxt highlighting in the filtered results.
+- Show context line around found matches. You can dynamically change the number of lines.
+- Easy jumping to and from the filter buffers.
+
+The search results are presented in a seperate buffer (and window) and
+the script offers a number of convenience key-mappings to navigate from one
+result to the next.
+
+The default key mappings are as follows:
+
+-------------------------------------------------------------------------------
+    KEY        Description
+-------------------------------------------------------------------------------
+Any buffer:
+    ,f         Filter the current buffer using the line pattern found in
+               register @/, that is the search buffer (your last search).
+    ,F         Ask for a line pattern and filters using that string.
+    ,g         Go to the newest filter window associated with the current
+               buffer. If the current buffer is also a filter window, go to
+               the next associated filter window that is the newest after the
+               current one.
+-------------------------------------------------------------------------------
+Filter buffer:
+    <Enter>    Go to the selected line in the original buffer and keep the filter
+               window open. 
+    <S-Enter>  Same as <Enter> but also closes the filter buffer.
+    c/C        Increase/decrease the number of context lines around matches.
+    o          Jump to the currently selected line in the original buffer, but
+               keep the cursor in the filter window.
+    a          Toggle auto follow. If auto follow is on, the original buffer
+               will automatically jump to the line your cursor is on (i.e.
+               it's the same effect as pressing o each time you move the
+               cursor).
+    j/k        Jump to next/previous search result.
+-------------------------------------------------------------------------------
+
+
