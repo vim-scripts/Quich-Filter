@@ -19,7 +19,7 @@
 if exists("g:filtering_version") || &cp
     finish
 endif
-let g:filtering_version = "1.0"
+let g:filtering_version = "1.0.1"
 
 "=============================================================================
 " Configuration part
@@ -45,6 +45,11 @@ nmap ,g :call GotoOpenSearchBuffer()<CR>
 " value that works good with my current color scheme.
 hi FilterContext guifg=grey60
 
+" This option emulates the wrapscan setting when using j/k (default bindings)
+" in the filter window. For regular search, the global option wrapscan is
+" applied (setlocal is not available). 0 = 'nowrapscan', 1 = 'wrapscan'.
+let s:filterWindowWrapScan = 0
+
 " This function is called when a new search buffer is created. You can change
 " the default key mappings and add more.
 function! s:UserDefinedSearchBuffer()
@@ -64,7 +69,6 @@ function! s:UserDefinedSearchBuffer()
 
     setlocal nonumber
     setlocal cursorline
-    setlocal nowrapscan
 endfunction
 
 "=============================================================================
@@ -380,12 +384,20 @@ function! s:BufferClosed(original)
 endfunction
 
 function! NextResult()
-    call search("^ ")
+    if s:filterWindowWrapScan
+        call search("^ ", "w")
+    else
+        call search("^ ", "W")
+    endif
 endfunction
 
 function! PreviousResult()
     normal 0
-    call search("^ ", "b")
+    if s:filterWindowWrapScan
+        call search("^ ", "bw")
+    else
+        call search("^ ", "bW")
+    endif
 endfunction
 
 function! GotoOpenSearchBuffer()
