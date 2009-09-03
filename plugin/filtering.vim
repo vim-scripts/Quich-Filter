@@ -355,9 +355,9 @@ endfunction
 function! ToggleAutoFollow()
     let s:AutoFollow = !s:AutoFollow
     if s:AutoFollow
-        call FancyEcho("Original buffer will @1follow@0 your selection in the filter window.")
+        call s:FancyEcho("Original buffer will @1follow@0 your selection in the filter window.")
     else
-        call FancyEcho("Original buffer will @1not follow@0 your selection in the filter window.")
+        call s:FancyEcho("Original buffer will @1not follow@0 your selection in the filter window.")
     endif
 endfunction
 
@@ -422,13 +422,13 @@ function! GotoOpenSearchBuffer()
     windo call InWin(l:vars)
     if l:vars.newestWin != -1
         execute l:vars.newestWin . "wincmd w"
-        call FancyEcho("Now in @1newest@0 filter window. Press ,g @1again@0 to skip to an older one.")
+        call s:FancyEcho("Now in @1newest@0 filter window. Press ,g @1again@0 to skip to an older one.")
     else
         execute l:startWin . "wincmd w"
         if s:IsSearchBuffer()
-            call FancyEcho("@2No @1older@2 open filter window found@0 than the current one.")
+            call s:FancyEcho("@2No @1older@2 open filter window found@0 than the current one.")
         else
-            call FancyEcho("@2No open filter window found@0 for current buffer.")
+            call s:FancyEcho("@2No open filter window found@0 for current buffer.")
         endif
     endif
 endfunction
