@@ -19,7 +19,7 @@
 if exists("g:filtering_version") || &cp
     finish
 endif
-let g:filtering_version = "1.0.1"
+let g:filtering_version = "1.0.3"
 
 "=============================================================================
 " Configuration part
@@ -37,7 +37,7 @@ let s:AutoFollow = 0
 
 " Key mappings. Some implementation default is showing here. Just pass a
 " string to search for as the first argument and 0 as the second.
-nmap ,F :call Gather(input("Filter on term: "), 0)<CR>:echo<CR>
+nmap ,F :call Gather(input("Filter on term: "), 0)<CR>
 nmap ,f :call Gather(@/, 0)<CR>:echo<CR>
 nmap ,g :call GotoOpenSearchBuffer()<CR>
 
