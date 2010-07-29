@@ -19,7 +19,7 @@
 if exists("g:filtering_version") || &cp
     finish
 endif
-let g:filtering_version = "1.0.3"
+let g:filtering_version = "1.0.4"
 
 "=============================================================================
 " Configuration part
@@ -76,6 +76,13 @@ endfunction
 "=============================================================================
 function! s:IsSearchBuffer()
     return exists("b:original")
+endfunction
+
+function! s:GotoLine(line)
+    let l:pos = getpos(".")
+    let l:pos[1] = a:line
+    let l:pos[2] = 1
+    call setpos(".", l:pos)
 endfunction
 
 function! s:GetOriginalBuffer()
@@ -146,8 +153,8 @@ function! GotoLineInOriginal(close_search)
         bdelete
     endif
     call s:FlipToWindowOrLoadBufferHere(l:original)
-    execute "normal " . l:linenr . "G"
-    normal zz
+    call s:GotoLine(l:linenr)
+    normal! zz
     call s:BlinkColumnAndLine(1, 1, 0)
 endfunction
 
@@ -173,8 +180,8 @@ function! s:DoFollowSelectionInOriginal(blink)
     else
         let l:searchWin = winnr()
         execute l:originalWin . "wincmd w"
-        execute "normal " . l:lineNr . "G"
-        normal zz
+        call s:GotoLine(l:lineNr)
+        normal! zz
         if a:blink
             call s:BlinkColumnAndLine(1, 1, 0)
         endif
@@ -293,7 +300,7 @@ function! Gather(line_pattern, search_buffer)
         " Clear an existing buffer.
         call s:FlipToWindowOrLoadBufferHere(a:search_buffer)
         set modifiable
-        silent! normal gg"_dG
+        silent! normal! gg"_dG
     endif
 
     " Copy all results in the new scratch buffer. Sort decending first.
@@ -305,7 +312,7 @@ function! Gather(line_pattern, search_buffer)
     for linenr in sort(keys(s:Gather), "Cmp")
         call append(0, s:Gather[linenr])
     endfor
-    normal ddgg
+    normal! ddgg
     setlocal nomodifiable
 
     unlet s:Gather
@@ -337,7 +344,7 @@ function! Refresh()
     " Try to get back to the line where the user pressed Refresh.
     if l:refresh_from_line != -1
         if search("^ *" . l:refresh_from_line . ":") != 0
-            normal zz
+            normal! zz
         endif
     endif
 endfunction
@@ -392,7 +399,7 @@ function! NextResult()
 endfunction
 
 function! PreviousResult()
-    normal 0
+    normal! 0
     if s:filterWindowWrapScan
         call search("^ ", "bw")
     else
