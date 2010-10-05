@@ -19,7 +19,7 @@
 if exists("g:filtering_version") || &cp
     finish
 endif
-let g:filtering_version = "1.0.6"
+let g:filtering_version = "1.0.6.1"
 
 " Global key mappings are no longer part of the plug-in code. Copy the
 " following lines and uncomment them to your VIMRC to get the old behavior.
@@ -390,16 +390,42 @@ function! Gather(entered_pattern, search_buffer)
     return l:retval
 endfunction
 
-function! s:GetFilterWindowHeight(nr_search_lines, original_buffer)
-    let l:prec = matchlist(s:MaxWindowHeight, "\\(\\d\\+\\)%$")
-    if empty(l:prec)
-        let l:max = s:MaxWindowHeight + 0
+function! s:GetFilterWindowHeight(nr_search_lines, started)
+    " If the start buffer is a search window, sum the height of
+    " the search window and the original window.
+    let l:original = getbufvar(a:started, "original")
+    if empty(l:original)
+        let l:original = a:started
+        let l:search_window_height = 0
     else
-        let l:winnr = bufwinnr(a:original_buffer)
-        let l:winheight = l:winnr == -1 ? &lines : winheight(l:winnr)
-        let l:max = l:prec[1] * l:winheight / 100
+        let l:search_window_height = bufwinnr(a:started) != -1 ? winheight(bufwinnr(a:started)) : 0
     endif
-    return min([l:max, a:nr_search_lines])
+
+    " Now look at the original window, if it is showing.
+    let l:original_window_height = bufwinnr(l:original) != -1 ?winheight(bufwinnr(l:original)) : 0
+
+    " If search window is open, original is not, just make sure the search
+    " window doesn't get bigger. If it's the only window open, also don't make
+    " it smaller.
+    if l:search_window_height > 0 && l:original_window_height == 0
+        if bufwinnr(a:started) == 1 && winbufnr(2) == -1
+            return l:search_window_height
+        else
+            return min([a:nr_search_lines, l:search_window_height])
+        endif
+    endif
+
+    " If the original window is open, and the max height is relative,
+    " determine the max size.
+    let l:prec = matchlist(s:MaxWindowHeight, "\\(\\d\\+\\)%$")
+    if !empty(l:prec)
+        let l:winheight = l:search_window_height + l:original_window_height
+        let l:max = l:prec[1] * l:winheight / 100
+        return min([l:max, a:nr_search_lines])
+    endif
+
+    " Otherwise the max is absolute, and we just use that.
+    return min([s:MaxWindowHeight + 0, a:nr_search_lines])
 endfunction
 
 function! Refresh(update_size)
@@ -427,7 +453,7 @@ function! Refresh(update_size)
     let l:lines = Gather(l:entered_pattern, l:search_buffer)
 
     if a:update_size
-        exe "res ".s:GetFilterWindowHeight(l:lines, l:original)
+        exe "res ".s:GetFilterWindowHeight(l:lines, l:search_buffer)
     endif
 
     " Try to get back to the line where the user pressed Refresh.
