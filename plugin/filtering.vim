@@ -100,7 +100,7 @@ function! DefaultFilterWindowEntered()
     nnoremap <buffer> i :call SetSearchInContextLines(1)<CR>:echo<CR>
     nnoremap <buffer> I :call SetSearchInContextLines(0)<CR>:echo<CR>
     " Show a quick help overview.
-    nnoremap <buffer> ? :call ShowHelp()<CR>
+    " nnoremap <buffer> ? :call ShowHelp()<CR>
 
     setlocal nonumber
     setlocal cursorline
@@ -379,9 +379,13 @@ function! Gather(entered_pattern, search_buffer)
         let l:b = str2nr(a:b)
         return l:a == l:b ? 0 : l:a > l:b ? -1 : 1
     endfunction
-    for linenr in sort(keys(s:Gather), "Cmp")
-        call append(0, s:Gather[linenr])
-    endfor
+    let i = max(map(keys(s:Gather), 'str2nr(v:val)'))
+    while i > 0
+        if has_key(s:Gather, i)
+            call append(0, s:Gather[i])
+        endif
+        let i -= 1
+    endwhile
     normal! ddgg
     setlocal nomodifiable
 

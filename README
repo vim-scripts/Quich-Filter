@@ -5,39 +5,22 @@ PSPad. This plug-in offers a number of additional features:
 
 - Further filtering/searching inside the filtered results.
 - Syntaxt highlighting in the filtered results.
-- Show context line around found matches. You can dynamically change the number of lines.
-- Easy jumping to and from the filter buffers.
+- Show context line around found matches. You can dynamically change the number
+  of lines.
+- Easy jumping to and from the filter buffers, including auto-follow.
 
-The search results are presented in a seperate buffer (and window) and
-the script offers a number of convenience key-mappings to navigate from one
-result to the next.
+In addition, the new 2.0 version (currently work in progress!) offers:
+- Fine-tuning of results (AND, OR and AND-NOT)
+- Showing context lines above, below or above and below the matches.
+- Show the raw results (no line numbering) for easy yanking.
 
-The default key mappings are as follows:
+The search results are presented in a separate buffer (and window) and the
+script offers a number of convenience key-mappings to navigate from one result
+to the next.
 
--------------------------------------------------------------------------------
-    KEY        Description
--------------------------------------------------------------------------------
-Any buffer:
-    ,f         Filter the current buffer using the line pattern found in
-               register @/, that is the search buffer (your last search).
-    ,F         Ask for a line pattern and filters using that string.
-    ,g         Go to the newest filter window associated with the current
-               buffer. If the current buffer is also a filter window, go to
-               the next associated filter window that is the newest after the
-               current one.
--------------------------------------------------------------------------------
-Filter buffer:
-    <Enter>    Go to the selected line in the original buffer and keep the filter
-               window open. 
-    <S-Enter>  Same as <Enter> but also closes the filter buffer.
-    c/C        Increase/decrease the number of context lines around matches.
-    o          Jump to the currently selected line in the original buffer, but
-               keep the cursor in the filter window.
-    a          Toggle auto follow. If auto follow is on, the original buffer
-               will automatically jump to the line your cursor is on (i.e.
-               it's the same effect as pressing o each time you move the
-               cursor).
-    j/k        Jump to next/previous search result.
--------------------------------------------------------------------------------
-
+There are no default mapping to start the plug-in, but setting this up can be
+as easy as cut-n-paste from the help file. In the results buffer a number of
+mappings are set up, please refer to the help file for an overview in 2.0. For
+older releases, press ?. Since ? is a useful VIM command it's no longer mapped
+in 1.0.7. In a results window, type ":call ShowHelp()" and press enter. 
 
