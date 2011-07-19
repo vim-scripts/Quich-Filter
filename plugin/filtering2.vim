@@ -17,9 +17,9 @@
 "=============================================================================
 
 if exists("g:filtering2_version") || &cp
-    " finish
+    finish
 endif
-let g:filtering_version = '2.0alpha'
+let g:filtering_version2 = '2.0alpha'
 
 function! FilteringEmptyCallback(obj)"{{{
   " This function should be empty and at the top of this file.
