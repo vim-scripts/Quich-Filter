@@ -10,7 +10,7 @@
 " Name Of File: filtering.vim
 "  Description: Quick Filter Plugin Vim Plugin
 "   Maintainer: Niels Aan de Brugh (nielsadb+vim at gmail dot com)
-" Last Changed: 2 July 2011
+" Last Changed: 11 August 2011
 "      Version: See g:filtering2_version for version number.
 "        Usage: This file should reside in the plugin directory and be
 "               automatically sourced.
@@ -19,7 +19,7 @@
 if exists("g:filtering2_version") || &cp
     finish
 endif
-let g:filtering_version2 = '2.0alpha'
+let g:filtering_version2 = '2.0alpha2'
 
 function! FilteringEmptyCallback(obj)"{{{
   " This function should be empty and at the top of this file.
@@ -133,7 +133,7 @@ function! FilteringReEvaluate() dict"{{{
 endfunction"}}}
 function! FilteringParseQuery(query, separator) dict"{{{
   let pattern_parts = split(a:query, a:separator)
-  let self.alt = pattern_parts[0]
+  let self.alt = [pattern_parts[0]]
   if len(pattern_parts) > 1
     let self.extra = pattern_parts[1]
   endif
@@ -152,16 +152,16 @@ function! FilteringParseQuery(query, separator) dict"{{{
   return self
 endfunction"}}}
 function! FilteringGotoLineInBuffer(buffer_nr, source_line_nr, close) dict"{{{
-  if a:line_nr < 1
+  if a:source_line_nr < 1
     return
   endif
-  if buffer_nr == self.target
+  if a:buffer_nr == self.target
     return <SID>FancyError('Cannot follow result in target window. Programming error?')
   endif
-  if a:window
+  if a:close
     bdelete
   endif
-  call <SID>FlipToWindowOrLoadBufferHere(buffer_nr)
+  call <SID>FlipToWindowOrLoadBufferHere(a:buffer_nr)
   exe 'normal! ' . a:source_line_nr . 'G'
   normal! zz
   return self
@@ -238,10 +238,14 @@ function! FilteringToggleAutoFollow(kind) dict"{{{
         \ self.auto_follow_source ? 'ON' : 'OFF')
   return self
 endfunction"}}}
+function! FilteringShowResultCount() dict"{{{
+  call <SID>FancyEcho(printf('Matched @1%d@0 results.', len(self.matches)))
+  return self
+endfunction"}}}
 
 " Public methods (convenience).
 function! FilteringGotoSelectionInOriginal(close) dict"{{{
-  return self.gotoLineInBuffer(self.orginal, self.getCurrentLineSelection(), a:close)
+  return self.gotoLineInBuffer(self.original, self.getCurrentLineSelection(), a:close)
 endfunction"}}}
 function! FilteringGotoSelectionInSource(close) dict"{{{
   return self.gotoLineInBuffer(self.source, self.getCurrentLineSelection(), a:close)
@@ -282,6 +286,7 @@ function! FilteringNew()"{{{
         \'destruct'                 : function('FilteringDestruct'),
         \'blink'                    : function('FilteringBlink'),
         \'toggleAutoFollow'         : function('FilteringToggleAutoFollow'),
+        \'showResultCount'          : function('FilteringShowResultCount'),
         \
         \'gotoSelectionInOriginal'  : function('FilteringGotoSelectionInOriginal'),
         \'gotoSelectionInSource'    : function('FilteringGotoSelectionInSource'),
@@ -294,7 +299,7 @@ function! FilteringNew()"{{{
         \'extra'                    : '',
         \'context_lines'            : ctx,
         \'extra_stop_lines'         : <SID>Def('g:filteringExtraPatternDefaultLinesAhead', -1),
-        \'extra_stop_pattern'       : <SID>Def('g:filteringExtraPatternDefaultStopPattern', '^$'),
+        \'extra_stop_pattern'       : <SID>Def('g:filteringExtraPatternDefaultStopPattern', '^\w*$'),
         \'match_context_in_results' : <SID>Def('g:filteringMatchContextInResults', 1),
         \'show_match_to_extra'      : <SID>Def('g:filteringShowMatchToExtra', 1),
         \'show_results_raw'         : <SID>Def('g:filteringShowResultsRaw', 0),
@@ -391,6 +396,7 @@ function! FilteringSetKeyMappings() dict"{{{
   call <SID>Map('t', 'call FilteringGetForTarget().addToParameter("show_match_to_extra", 1).reevaluate()')
   call <SID>Map('D', 'call FilteringGetForTarget().addToParameter("show_match_to_extra", 1).reevaluate()')
   call <SID>Map('u', 'call FilteringGetForTarget().addToParameter("show_results_raw", 1).reevaluate()')
+  call <SID>Map('z', 'call FilteringGetForTarget().showResultCount()')
   call <SID>Map('j', 'call <SID>NextResult()<CR>:echo')
   call <SID>Map('k', 'call <SID>PrevResult()<CR>:echo')
  call <SID>MapI('&', 'call FilteringGetForTarget().addInputToParameter("include", "AND: ").reevaluate()')
@@ -401,7 +407,7 @@ function! FilteringSetKeyMappings() dict"{{{
 endfunction"}}}
 function! FilteringPasteResults() dict"{{{
   let self.context_lines_mode = self.context_lines_mode % 3
-  let self.show_match_to_extra = self.show_match_to_extra % 2
+  let self.show_match_to_extra = self.show_match_to_extra % 3
   let self.show_results_raw = self.show_results_raw % 2
   let top_elements_max = index([0, 2], self.context_lines_mode) != -1 ? self.context_lines : 0
   let bottom_elements_max = index([0, 1], self.context_lines_mode) != -1 ? self.context_lines : 0
@@ -410,13 +416,19 @@ function! FilteringPasteResults() dict"{{{
   let self.last_settings = deepcopy(self)
 
   let res = {}
-  if self.show_match_to_extra
+  if self.show_match_to_extra == 1
+    " Show all lines up to (and including) the extra match.
     for i in keys(self.context_extra)
-      call <SID>SpliceList(res, self.context_extra[i], i)
+      if !empty(self.context_extra[i])
+        call <SID>SpliceList(res, self.context_extra[i], i+1)
+      endif
     endfor
-  else
+  elseif self.show_match_to_extra == 2
+    " Only show the last extra context line (the extra match itself)
     for i in keys(self.context_extra)
-      let res[i + len(self.context_extra[i])] = self.context_extra[i][-1]
+      if !empty(self.context_extra[i])
+        let res[i + len(self.context_extra[i])] = self.context_extra[i][-1]
+      endif
     endfor
   endif
   if top_elements_max > 0
@@ -472,11 +484,10 @@ function! FilteringRedraw() dict"{{{
   let on_result = self.getCurrentLineSelection()
   let on_pos = getpos('.')
   call self.pasteResults()
-  if on_result > 0 && !self.last_settings.show_results_raw
-    call search(printf('^ %06d: ', 'c'))
-  else
+  if (on_result > 0 && !self.last_settings.show_results_raw)
+        \ || search(printf('^[_ ]%6d: ', on_result), 'c') == -1
     call setpos('.', on_pos)
-  end
+  endif
   return self
 endfunction"}}}
 
@@ -498,6 +509,7 @@ function! <SID>FilteringStub(txt)"{{{
         \'destruct'                 : function('FilteringDummyFunction'),
         \'blink'                    : function('FilteringDummyFunction'),
         \'toggleAutoFollow'         : function('FilteringDummyFunction'),
+        \'showResultCount'          : function('FilteringDummyFunction'),
         \
         \'gotoSelectionInOriginal'  : function('FilteringDummyFunction'),
         \'gotoSelectionInSource'    : function('FilteringDummyFunction'),
@@ -533,14 +545,20 @@ function! <SID>AddMatch()"{{{
     if !empty(s:extra_stop_pattern)
       let extra_stop_line = search(s:extra_stop_pattern, 'nW', extra_stop_line)
       if extra_stop_line == -1
-        return
+        let extra_stop_line = line('$')
       endif
     endif
+
+    " Now search for the extra pattern
+    let matched_extra = search(s:extra, 'nW', extra_stop_line)
+
     " Copy context lines up to extra match
-    if extra_stop_line > nr
-      let context_lines = []
-      call <SID>CopyContextRange(context_line, nr + 1, extra_stop_line)
-      let s:context_extra[nr] = context_lines
+    if matched_extra > nr
+      let extra = []
+      call <SID>CopyContextRange(extra, nr + 1, matched_extra)
+      let s:context_extra[nr] = extra
+    else
+      return
     endif
   endif
 
@@ -553,7 +571,8 @@ function! <SID>AddMatch()"{{{
     let top = []
     call <SID>CopyContextRange(top, max([1, nr - s:context_lines]), nr - 1)
     let s:context_top[nr] = top
-
+  endif
+  if s:context_lines > 0
     " Bottom context
     let bottom = []
     call <SID>CopyContextRange(bottom, nr + 1, min([line('$'), nr + s:context_lines]))
