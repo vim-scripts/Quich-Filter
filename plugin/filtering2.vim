@@ -10,7 +10,7 @@
 " Name Of File: filtering.vim
 "  Description: Quick Filter Plugin Vim Plugin
 "   Maintainer: Niels Aan de Brugh (nielsadb+vim at gmail dot com)
-" Last Changed: 11 August 2011
+" Last Changed: 12 August 2011
 "      Version: See g:filtering2_version for version number.
 "        Usage: This file should reside in the plugin directory and be
 "               automatically sourced.
@@ -19,14 +19,14 @@
 if exists("g:filtering2_version") || &cp
     finish
 endif
-let g:filtering_version2 = '2.0alpha2'
+let g:filtering_version2 = '2.0alpha3'
 
 function! FilteringEmptyCallback(obj)"{{{
   " This function should be empty and at the top of this file.
 endfunction"}}}
 
 " Public Methods
-function! FilteringRun() dict"{{{
+function! FilteringGather() dict"{{{
   if empty(self.alt)
     return <SID>FancyError("@1No search pattern set.@0 Add at least one search pattern alternative, e.g. addToParameter('alt', 'stuff').")
   endif
@@ -56,24 +56,31 @@ function! FilteringRun() dict"{{{
   for attr in s:UnpackedAttributes
     unlet {'s:'.attr}
   endfor
-
-  if self.target == -1 || !bufexists(self.target)
-    let self.target = self.createNewResultWindow()
-  else
-    call <SID>FlipToWindowOrLoadBufferHere(self.target)
-  endif
-
-  return self.pasteResults()
+  return empty(self.matches) ? <SID>FancyError('No results found.') : self
 endfunction
 let s:UnpackedAttributes = ['include', 'exclude', 'matches', 'match_context_in_results',
       \ 'extra', 'context_lines', 'extra_stop_lines', 'extra_stop_pattern',
       \ 'context_extra', 'context_top', 'context_bottom']
 "}}}
+function! FilteringOpenResultWindow() dict"{{{
+  if self.target == -1 || !bufexists(self.target)
+    let self.target = self.createNewResultWindow()
+  else
+    call <SID>FlipToWindowOrLoadBufferHere(self.target)
+  endif
+  return self
+endfunction"}}}
+function! FilteringRun() dict"{{{
+  return self.gather().openResultsWindow().pasteResults().showResultCount()
+endfunction"}}}
 function! FilteringReturn() dict"{{{
   if !bufexists(self.target)
     return <SID>FancyError('The search window was @1already closed@0.)
   endif
   call <SID>FlipToWindowOrLoadBufferHere(self.target)
+  if empty(self.message)
+    let self.message = ' '
+  endif
   return self
 endfunction"}}}
 function! FilteringAddToParameter(name, value) dict"{{{
@@ -92,10 +99,40 @@ let s:ValidAddToParams = {
       \'include'             : type(''),
       \'exclude'             : type(''),
       \'context_lines'       : type(42),
-      \'context_lines_mode'  : type(42),
-      \'show_match_to_extra' : type(42),
-      \'show_results_raw'    : type(42),
       \}"}}}
+function! FilteringToggleSetting(name) dict"{{{
+  if !has_key(s:ToggleSettingsRange, a:name)
+    return <SID>FancyError(printf('Parameter %s @1not a valid parameter@0 to change using toggleSetting', a:name))
+  endif
+  let self[a:name] = (self[a:name] + 1) % s:ToggleSettingsRange[a:name]
+  let show = s:ToggleSettingsName[a:name] . ':'
+  let options = s:ToggleSettingsOptionNames[a:name]
+  for i in range(len(options))
+    if i == self[a:name]
+      let show .= ' [@1' . toupper(options[i]) . '@0]'
+    else
+      let show .= '  ' . toupper(options[i]) . ' '
+    endif
+  endfor
+  let self.message = show
+  return self
+endfunction
+let s:ToggleSettingsRange = {
+      \'context_lines_mode'  : 3,
+      \'show_match_to_extra' : 3,
+      \'show_results_raw'    : 2,
+      \}
+let s:ToggleSettingsName = {
+      \'context_lines_mode'  : 'Context lines mode',
+      \'show_match_to_extra' : 'Show lines up to extra pattern',
+      \'show_results_raw'    : 'Show results raw'
+      \}
+let s:ToggleSettingsOptionNames = {
+      \'context_lines_mode'  : ['both', 'bottom', 'top'],
+      \'show_match_to_extra' : ['none', 'up to extra', 'just extra'],
+      \'show_results_raw'    : ['off', 'on']
+      \}
+"}}}
 function! FilteringAddInputToParameter(name, prompt) dict"{{{
   let value = self.on_input_requested(a:prompt)
   return empty(value) ? <SID>FilteringStub('') : self.addToParameter(a:name, value)
@@ -114,7 +151,6 @@ endfunction
 let s:ValidSetParams = {
       \'on_result_buffer_created' : type(function('FilteringEmptyCallback')),
       \'context_lines'            : type(42),
-      \'auto_follow'              : type(42),
       \'context_lines_mode'       : type(42),
       \'show_match_to_extra'      : type(42),
       \'show_results_raw'         : type(42),
@@ -128,6 +164,9 @@ function! FilteringReEvaluate() dict"{{{
       endif
     endfor
     return self.redraw()
+  endif
+  if empty(self.message)
+    let self.message = ' '
   endif
   return self.run()
 endfunction"}}}
@@ -151,8 +190,8 @@ function! FilteringParseQuery(query, separator) dict"{{{
   endif
   return self
 endfunction"}}}
-function! FilteringGotoLineInBuffer(buffer_nr, source_line_nr, close) dict"{{{
-  if a:source_line_nr < 1
+function! FilteringGotoLineInBuffer(buffer_nr, line_nr, close) dict"{{{
+  if a:line_nr < 1
     return
   endif
   if a:buffer_nr == self.target
@@ -162,8 +201,9 @@ function! FilteringGotoLineInBuffer(buffer_nr, source_line_nr, close) dict"{{{
     bdelete
   endif
   call <SID>FlipToWindowOrLoadBufferHere(a:buffer_nr)
-  exe 'normal! ' . a:source_line_nr . 'G'
+  exe 'normal! ' . a:line_nr . 'G'
   normal! zz
+  let self.message = printf('-> @1%s@0   line @1%d@0', bufname(a:buffer_nr), a:line_nr)
   return self
 endfunction"}}}
 function! FilteringFollowInBuffer(buffer_nr, line_nr, blink_times) dict"{{{
@@ -179,6 +219,7 @@ function! FilteringFollowInBuffer(buffer_nr, line_nr, blink_times) dict"{{{
     call self.blink(a:blink_times)
     exe start_window . 'wincmd w'
   endif
+  let self.message = printf('= @1%s@0   line @1%d@0', bufname(a:buffer_nr), a:line_nr)
   return self
 endfunction"}}}
 function! FilteringGetCurrentLineSelection() dict"{{{
@@ -207,6 +248,9 @@ function! FilteringDestruct() dict"{{{
   if start_buffer != self.target
     call <SID>FlipToWindowOrLoadBufferHere(start_buffer)
   endif
+  if empty(self.message)
+    let self.message = ' '
+  endif
   return self
 endfunction"}}}
 function! FilteringBlink(times) dict"{{{
@@ -220,26 +264,65 @@ endfunction"}}}
 function! FilteringToggleAutoFollow(kind) dict"{{{
   " This function keeps auto follow for source and original synchronized if
   " that is the same buffer. This is more convenient.
-  if kind == 'source'
+  if a:kind == 'source'
     let self.auto_follow_source = !self.auto_follow_source
     if self.source == self.original
-      let self.auto_follow_original = s!elf.auto_follow_source
+      let self.auto_follow_original = self.auto_follow_source
     endif
-  elseif kind == 'original'
+  elseif a:kind == 'original'
     let self.auto_follow_original = !self.auto_follow_original
     if self.source == self.original
-      let self.auto_follow_source = s!elf.auto_follow_original
+      let self.auto_follow_source = self.auto_follow_original
     endif
   else
     return <SID>FancyError('Incorrect kind @1'.a:kind.'@0.')
   endif
-  call <SID>FancyEcho(printf('Auto follow: Original @1%s@0 Source @1%s@0',
-        \ self.auto_follow_original ? 'ON' : 'OFF',
-        \ self.auto_follow_source ? 'ON' : 'OFF')
+  if self.source == self.original
+    let self.message = printf('Auto follow: %s', <SID>BooleanToSwitch(self.auto_follow_original))
+  else
+    let self.message = printf('Auto follow: original %s source %s',
+          \ <SID>BooleanToSwitch(self.auto_follow_original),
+          \ <SID>BooleanToSwitch(self.auto_follow_source)
+  endif
   return self
+endfunction
+function! <SID>BooleanToSwitch(value)
+  return a:value ? ' OFF  [@1ON@0]' : '[@1OFF@0]  ON '
 endfunction"}}}
 function! FilteringShowResultCount() dict"{{{
-  call <SID>FancyEcho(printf('Matched @1%d@0 results.', len(self.matches)))
+  let self.message = printf('Found @1%d@0 results.', len(self.matches))
+  return self
+endfunction"}}}
+function! FilteringNextResult() dict"{{{
+  let start = line('.')
+  if FilteringGetForTarget().last_settings.show_results_raw
+    normal! j
+  else
+    call search('^ ', 'W')
+  end
+  if (!self.auto_follow_source && !self.auto_follow_original) || line('.') == start
+    let self.message = ' '
+  endif
+  return self
+endfunction"}}}
+function! FilteringPrevResult() dict"{{{
+  let start = line('.')
+  if FilteringGetForTarget().last_settings.show_results_raw
+    normal! k
+  else
+    normal! 0
+    call search('^ ', 'bW')
+  end
+  if (!self.auto_follow_source && !self.auto_follow_original) || line('.') == start
+    let self.message = ' '
+  endif
+  return self
+endfunction"}}}
+function! FilteringDone() dict"{{{
+  if !empty(self.message)
+    call <SID>FancyEcho(self.message)
+  endif
+  let self.message = ''
   return self
 endfunction"}}}
 
@@ -272,9 +355,12 @@ function! FilteringNew()"{{{
   endif
   let s:object_id += 1
   let obj = {
+        \'gather'                   : function('FilteringGather'),
+        \'openResultsWindow'        : function('FilteringOpenResultWindow'),
         \'run'                      : function('FilteringRun'),
         \'return'                   : function('FilteringReturn'),
         \'addToParameter'           : function('FilteringAddToParameter'),
+        \'toggleSetting'            : function('FilteringToggleSetting'),
         \'addInputToParameter'      : function('FilteringAddInputToParameter'),
         \'setParameter'             : function('FilteringSetParameter'),
         \'setParameterToInput'      : function('FilteringSetParameterToInput'),
@@ -287,6 +373,9 @@ function! FilteringNew()"{{{
         \'blink'                    : function('FilteringBlink'),
         \'toggleAutoFollow'         : function('FilteringToggleAutoFollow'),
         \'showResultCount'          : function('FilteringShowResultCount'),
+        \'nextResult'               : function('FilteringNextResult'),
+        \'prevResult'               : function('FilteringPrevResult'),
+        \'done'                     : function('FilteringDone'),
         \
         \'gotoSelectionInOriginal'  : function('FilteringGotoSelectionInOriginal'),
         \'gotoSelectionInSource'    : function('FilteringGotoSelectionInSource'),
@@ -323,6 +412,7 @@ function! FilteringNew()"{{{
         \'last_settings'            : {},
         \'auto_follow_source'       : <SID>Def('g:filteringDefaultAutoFollow', 0),
         \'auto_follow_original'     : <SID>Def('g:filteringDefaultAutoFollow', 0),
+        \'message'                  : '',
         \}
   let b:filtering_source[obj.id] = obj
   return obj
@@ -342,7 +432,7 @@ function! FilteringGetForSource(...)"{{{
   if empty(actual_searches)
     return <SID>FilteringStub('All filtering window have been @1closed@0.')
   elseif len(actual_searches) == 1
-    return value(actual_searches)[0]
+    return values(actual_searches)[0]
   else
     if exists('a:001')
       return a:001(values(actual_searches))
@@ -382,27 +472,27 @@ function! FilteringCreateNewWindow() dict"{{{
 endfunction"}}}
 function! FilteringSetKeyMappings() dict"{{{
   let s:mappingFilter = <SID>Def('g:filteringDefaultKeyMappings', [])
-  call <SID>Map('<CR>', 'call FilteringGetForTarget().gotoSelectionInOriginal(0).blink(1)')
-  call <SID>Map('<S-CR>', 'call FilteringGetForTarget().gotoSelectionInOriginal(1).destruct().blink(1)')
-  call <SID>Map('<Esc>', 'call FilteringGetForTarget().destruct()')
-  call <SID>Map('a', 'call FilteringGetForTarget().toggleAutoFollow("source")')
-  call <SID>Map('A', 'call FilteringGetForTarget().toggleAutoFollow("original")')
-  call <SID>Map('o', 'call FilteringGetForTarget().followSelectionInSource(1)')
-  call <SID>Map('O', 'call FilteringGetForTarget().followSelectionInOriginal(1)')
-  call <SID>Map('c', 'call FilteringGetForTarget().addToParameter("context_lines", 1).reevaluate()')
-  call <SID>Map('C', 'call FilteringGetForTarget().addToParameter("context_lines", -1).reevaluate()')
-  call <SID>Map('d', 'call FilteringGetForTarget().addToParameter("context_lines_mode", 1).reevaluate()')
-  call <SID>Map('r', 'call FilteringGetForTarget().reevaluate()')
-  call <SID>Map('t', 'call FilteringGetForTarget().addToParameter("show_match_to_extra", 1).reevaluate()')
-  call <SID>Map('D', 'call FilteringGetForTarget().addToParameter("show_match_to_extra", 1).reevaluate()')
-  call <SID>Map('u', 'call FilteringGetForTarget().addToParameter("show_results_raw", 1).reevaluate()')
-  call <SID>Map('z', 'call FilteringGetForTarget().showResultCount()')
-  call <SID>Map('j', 'call <SID>NextResult()<CR>:echo')
-  call <SID>Map('k', 'call <SID>PrevResult()<CR>:echo')
- call <SID>MapI('&', 'call FilteringGetForTarget().addInputToParameter("include", "AND: ").reevaluate()')
- call <SID>MapI('!', 'call FilteringGetForTarget().addInputToParameter("exclude", "NOT: ").reevaluate()')
- call <SID>MapI('<Bar>', 'call FilteringGetForTarget().addInputToParameter("alt", "OR: ").reevaluate()')
- call <SID>MapI('e', 'call FilteringGetForTarget().setParameterToInput("extra", "EXTRA: ").reevaluate()')
+  call <SID>Map('<CR>', 'call FilteringGetForTarget().gotoSelectionInOriginal(0).blink(1).done()')
+  call <SID>Map('<S-CR>', 'call FilteringGetForTarget().gotoSelectionInOriginal(1).destruct().blink(1).done()')
+  call <SID>Map('<Esc>', 'call FilteringGetForTarget().destruct().done()')
+  call <SID>Map('a', 'call FilteringGetForTarget().toggleAutoFollow("source").done()')
+  call <SID>Map('A', 'call FilteringGetForTarget().toggleAutoFollow("original").done()')
+  call <SID>Map('o', 'call FilteringGetForTarget().followSelectionInSource(1).done()')
+  call <SID>Map('O', 'call FilteringGetForTarget().followSelectionInOriginal(1).done()')
+  call <SID>Map('c', 'call FilteringGetForTarget().addToParameter("context_lines", 1).reevaluate().done()')
+  call <SID>Map('C', 'call FilteringGetForTarget().addToParameter("context_lines", -1).reevaluate().done()')
+  call <SID>Map('d', 'call FilteringGetForTarget().toggleSetting("context_lines_mode").reevaluate().done()')
+  call <SID>Map('r', 'call FilteringGetForTarget().reevaluate().done()')
+  call <SID>Map('t', 'call FilteringGetForTarget().toggleSetting("show_match_to_extra").reevaluate().done()')
+  call <SID>Map('D', 'call FilteringGetForTarget().toggleSetting("show_match_to_extra").reevaluate().done()')
+  call <SID>Map('u', 'call FilteringGetForTarget().toggleSetting("show_results_raw").reevaluate().done()')
+  call <SID>Map('z', 'call FilteringGetForTarget().showResultCount().done()')
+  call <SID>Map('j', 'call FilteringGetForTarget().nextResult().done()')
+  call <SID>Map('k', 'call FilteringGetForTarget().prevResult().done()')
+ call <SID>MapI('&', 'call FilteringGetForTarget().addInputToParameter("include", "AND: ").reevaluate().done()')
+ call <SID>MapI('!', 'call FilteringGetForTarget().addInputToParameter("exclude", "NOT: ").reevaluate().done()')
+ call <SID>MapI('<Bar>', 'call FilteringGetForTarget().addInputToParameter("alt", "OR: ").reevaluate().done()')
+ call <SID>MapI('e', 'call FilteringGetForTarget().setParameterToInput("extra", "EXTRA: ").reevaluate().done()')
   unlet s:mappingFilter
 endfunction"}}}
 function! FilteringPasteResults() dict"{{{
@@ -448,7 +538,7 @@ function! FilteringPasteResults() dict"{{{
   endfor
 
   setlocal modifiable
-  normal! gg"_dG
+  silent normal! gg"_dG
   let i = max(map(keys(res), 'str2nr(v:val)'))
   if self.show_results_raw
     while i > 0
@@ -465,7 +555,7 @@ function! FilteringPasteResults() dict"{{{
       let i -= 1
     endwhile
   endif
-  normal! ddgg
+  silent normal! "_ddgg
   setlocal nomodifiable
 
   return self
@@ -495,9 +585,12 @@ endfunction"}}}
 function! <SID>FilteringStub(txt)"{{{
   " TODO: when final, make up to date with interface
   let obj = {
+        \'gather'                   : function('FilteringDummyFunction'),
+        \'openResultsWindow'        : function('FilteringDummyFunction'),
         \'run'                      : function('FilteringDummyFunction'),
         \'return'                   : function('FilteringDummyFunction'),
         \'addToParameter'           : function('FilteringDummyFunction'),
+        \'toggleSetting'            : function('FilteringDummyFunction'),
         \'addInputToParameter'      : function('FilteringDummyFunction'),
         \'setParameter'             : function('FilteringDummyFunction'),
         \'setParameterToInput'      : function('FilteringDummyFunction'),
@@ -510,14 +603,23 @@ function! <SID>FilteringStub(txt)"{{{
         \'blink'                    : function('FilteringDummyFunction'),
         \'toggleAutoFollow'         : function('FilteringDummyFunction'),
         \'showResultCount'          : function('FilteringDummyFunction'),
-        \
+        \'nextResult'               : function('FilteringDummyFunction'),
+        \'prevResult'               : function('FilteringDummyFunction'),
+        \'done'                     : function('FilteringDummyFunction'),
         \'gotoSelectionInOriginal'  : function('FilteringDummyFunction'),
         \'gotoSelectionInSource'    : function('FilteringDummyFunction'),
         \'followSelectionInOriginal': function('FilteringDummyFunction'),
         \'followSelectionInSource'  : function('FilteringDummyFunction'),
+        \'on_result_buffer_created' : function('FilteringDummyFunction'),
+        \'createNewResultWindow'    : function('FilteringDummyFunction'),
+        \'setKeyMappings'           : function('FilteringDummyFunction'),
+        \'pasteResults'             : function('FilteringDummyFunction'),
+        \'validateParameter'        : function('FilteringDummyFunction'),
+        \'redraw'                   : function('FilteringDummyFunction'),
         \
-        \'dummy'          : 1,
-        \'error_msg'      : a:txt,
+        \'dummy'                    : 1,
+        \'error_msg'                : a:txt,
+        \'on_input_requested'       : function('FilteringDummyFunction'),
         \}
   return obj
 endfunction"}}}
@@ -643,6 +745,7 @@ function! <SID>FancyEcho(text)"{{{
     let l:i = l:i + 1
   endwhile
   echohl None
+  redraw
   return 0
 endfunction"}}}
 function! <SID>FancyError(text)"{{{
@@ -686,11 +789,11 @@ function! <SID>AutoCmdCursorMoved()"{{{
     let b:filtering_last_selected_line = line('.')
     let obj = FilteringGetForTarget()
     if obj.auto_follow_original
-      obj.followSelectionInOriginal(0)
+      call obj.followSelectionInOriginal(0).done()
     endif
     if obj.auto_follow_source
           \ && (!obj.auto_follow_original || obj.original != obj.source)
-      obj.followSelectionInSource(0)
+      call obj.followSelectionInSource(0).done()
     endif
   endif
 endfunction"}}}
@@ -707,33 +810,5 @@ function! <SID>SelectFromMultipleSearches(searches)"{{{
         \ ? a:searches[selected-1]
         \ : <SID>FancyError('No valid search was selected')
 endfunction"}}}
-function! <SID>NextResult()"{{{
-  if FilteringGetForTarget().last_settings.show_results_raw
-    normal! j
-  else
-    call search('^ ', '')
-  end
-endfunction"}}}
-function! <SID>PrevResult()"{{{
-  if FilteringGetForTarget().last_settings.show_results_raw
-    normal! k
-  else
-    normal! 0
-    call search('^ ', 'b')
-  end
-endfunction"}}}
-
-function! TestOld()
-  let start = reltime()
-  call Gather('PRINTSERVER ', 0)
-  echo 'old script: '.reltimestr(reltime(start))
-endfunction
-
-function! TestNew()
-  let start = reltime()
-  " call FilteringNew().addToParameter('alt', 'PBE ').setParameter('extra', 'PRINTSERVER').run()
-  call FilteringNew().addToParameter('alt', 'PBE').run()
-  echo 'new script: '.reltimestr(reltime(start))
-endfunction
 
 " vim:sw=2:fdm=marker
