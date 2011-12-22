@@ -19,7 +19,7 @@
 if exists("g:filtering2_version") || &cp
     finish
 endif
-let g:filtering_version2 = '2.0alpha3'
+let g:filtering_version2 = '2.0beta1'
 
 function! FilteringEmptyCallback(obj)"{{{
   " This function should be empty and at the top of this file.
@@ -539,25 +539,17 @@ function! FilteringPasteResults() dict"{{{
 
   setlocal modifiable
   silent normal! gg"_dG
-  let i = max(map(keys(res), 'str2nr(v:val)'))
   if self.show_results_raw
-    while i > 0
-      if has_key(res, i)
-        call append(0, strpart(res[i], 9))
-      endif
-      let i -= 1
-    endwhile
+    for linenr in sort(keys(res), '<SID>Cmp')
+      call append(0, strpart(res[linenr], 9))
+    endfor
   else
-    while i > 0
-      if has_key(res, i)
-        call append(0, res[i])
-      endif
-      let i -= 1
-    endwhile
+    for linenr in sort(keys(res), '<SID>Cmp')
+      call append(0, res[linenr])
+    endfor
   endif
   silent normal! "_ddgg
   setlocal nomodifiable
-
   return self
 endfunction"}}}
 function! FilteringValidateParameter(table, name, value, caller) dict"{{{
@@ -809,6 +801,11 @@ function! <SID>SelectFromMultipleSearches(searches)"{{{
   return selected > 0 && selected <= len(options)
         \ ? a:searches[selected-1]
         \ : <SID>FancyError('No valid search was selected')
+endfunction"}}}
+function! <SID>Cmp(a, b)"{{{
+  let l:a = str2nr(a:a)
+  let l:b = str2nr(a:b)
+  return l:a == l:b ? 0 : l:a > l:b ? -1 : 1
 endfunction"}}}
 
 " vim:sw=2:fdm=marker
